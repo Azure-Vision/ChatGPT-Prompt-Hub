@@ -14,14 +14,14 @@ def init_connection():
 db = init_connection()
 
 def get_prompt_items(force = False):
-    if force or "prompts" not in st.session_state:
+    if force or "all_prompt_ids" not in st.session_state:
         prompts = db.Prompts.find()
         prompt_items = list(prompts)  # make hashable for st.experimental_memo
         st.session_state["all_prompt_ids"] = [prompt["_id"] for prompt in prompt_items]
         st.session_state["prompt_dict"] = {prompt["_id"]: prompt for prompt in prompt_items}
 
 def get_user_items(force = False):
-    if force or "users" not in st.session_state:
+    if force or "users_dict" not in st.session_state:
         users = db.Users.find()
         user_items = list(users)
         st.session_state['users_dict'] = {user["_id"]: user for user in user_items}
