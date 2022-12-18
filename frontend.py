@@ -14,14 +14,14 @@ def init_connection():
 db = init_connection()
 
 def get_prompt_items(force = False):
-    if force or "all_prompt_ids" not in st.session_state:
+    if force or "all_prompt_ids" not in st.session_state or st.session_state["all_prompt_ids"] == [] or "prompt_dict" not in st.session_state:
         prompts = db.Prompts.find()
-        prompt_items = list(prompts)  # make hashable for st.experimental_memo
+        prompt_items = list(prompts)
         st.session_state["all_prompt_ids"] = [prompt["_id"] for prompt in prompt_items]
         st.session_state["prompt_dict"] = {prompt["_id"]: prompt for prompt in prompt_items}
 
 def get_user_items(force = False):
-    if force or "users_dict" not in st.session_state:
+    if force or "users_dict" not in st.session_state or "usernames" not in st.session_state or "id_username_dict" not in st.session_state or "username_id_dict" not in st.session_state or "password_dict" not in st.session_state:
         users = db.Users.find()
         user_items = list(users)
         st.session_state['users_dict'] = {user["_id"]: user for user in user_items}
@@ -58,14 +58,14 @@ def render_prompts(prompt_ids, n_column = 3):
         st_2n_columns = st.columns(n_column * [2,1])
         for column_i, item in enumerate(n_prompts):
             favor_col = st_2n_columns[2*column_i].empty()
-            if "username" in st.session_state and st.session_state["username"] != "":
+            if "username" in st.session_state and st.session_state["username"]:
                 is_favor = item["_id"] in st.session_state['users_dict'][st.session_state['username_id_dict'][st.session_state["username"]]]["favorPrompts"]
             else:
                 is_favor = False
 
             change_favor = favor_col.button(f"{':heart:' if is_favor else '🤍'} {item['numFavor']}", key = "heart" + item['content']) # 
             if change_favor:
-                if "username" in st.session_state and st.session_state["username"] != "":
+                if "username" in st.session_state and st.session_state["username"]:
                     is_favor = not is_favor
                     if is_favor:
                         db.Users.update_one({"username": st.session_state["username"]}, {"$push": {"favorPrompts": item["_id"]}})
@@ -82,14 +82,14 @@ def render_prompts(prompt_ids, n_column = 3):
                     st.error("Please log in to favorite a prompt.")
             
             flag_col = st_2n_columns[2*column_i + 1].empty()
-            if "username" in st.session_state and st.session_state["username"] != "":
+            if "username" in st.session_state and st.session_state["username"]:
                 is_flag = item["_id"] in st.session_state['users_dict'][st.session_state['username_id_dict'][st.session_state["username"]]]["flagPrompts"]
             else:
                 is_flag = False
 
             change_flag = flag_col.button(f"{'⚠️' if is_flag else '❕'} {item['numFlag']}", key = "flag" + item['content']) # 
             if change_flag:
-                if "username" in st.session_state and st.session_state["username"] != "":
+                if "username" in st.session_state and st.session_state["username"]:
                     is_flag = not is_flag
                     if is_flag:
                         db.Users.update_one({"username": st.session_state["username"]}, {"$push": {"flagPrompts": item["_id"]}})
@@ -104,29 +104,6 @@ def render_prompts(prompt_ids, n_column = 3):
                     change_flag = flag_col.button(f"{'⚠️' if is_flag else '❕'} {item['numFlag']}", key = "changedflag" + item['content'])
                 else:
                     st.error("Please log in to flag a prompt.")
-
-            # flag button
-            # flag_col = st_2n_columns[2*column_i + 1].empty()
-            # if "username" in st.session_state and st.session_state["username"] != "":
-            #     is_flag = item["_id"] in st.session_state['users_dict'][st.session_state['username_id_dict'][st.session_state["username"]]]["flagPrompts"]
-            # else:
-            #     is_flag = False
-            # change_flag = flag_col.button(f"{'⚠️' if is_flag else '❕'} {item['numFlag']}", key = "flag" + item['content']) # 
-            # if change_flag:
-            #     if "username" in st.session_state and st.session_state["username"] != "":
-            #         is_flag = not is_flag
-            #         if is_flag:
-            #             db.Users.update_one({"username": st.session_state["username"]}, {"$push": {"flagPrompts": item["_id"]}})
-            #             db.Prompts.update_one({"prompts": item["_id"]}, {"$inc": {"numFlag": 1}})
-            #             item['numFlag'] += 1
-            #         else:
-            #             db.Users.update_one({"username": st.session_state["username"]}, {"$pull": {"flagPrompts": item["_id"]}})
-            #             db.Prompts.update_one({"prompts": item["_id"]}, {"$inc": {"numFlag": -1}})
-            #             item['numFlag'] -= 1
-            #         change_flag = flag_col.button(f"{'⚠️' if is_flag else '❕'} {item['numFlag']}", key = "changedflag" + item['content'])
-                    
-            #     else:
-            #         st.error("Please log in to flag a prompt.")
         
 if page == "Explore":
     st.write("### Explore Prompts")
@@ -139,7 +116,7 @@ if page == "Explore":
 if page == "My Collections":
     st.write("### :heart: My Favorite Prompts")
     prompt_dict = st.session_state["prompt_dict"]
-    if "username" in st.session_state and st.session_state["username"] != "":
+    if "username" in st.session_state and st.session_state["username"]:
         get_user_items(force=True)
         favor_prompt_ids = st.session_state["users_dict"][st.session_state['username_id_dict'][st.session_state["username"]]]["favorPrompts"]
         render_prompts(favor_prompt_ids)
@@ -153,7 +130,7 @@ if page == "Create":
         title = st.text_input("Title")
         prompt = st.text_area("Prompt")
         language = st.selectbox("Language", ["English", "Chinese", "Arabic", "French", "Russian", "Spanish"])
-        if "username" in st.session_state and st.session_state["username"] != "":
+        if "username" in st.session_state and st.session_state["username"]:
             author = ""
             author_id = st.session_state['username_id_dict'][st.session_state["username"]]
         else:
@@ -199,10 +176,10 @@ if "username" not in st.session_state or st.session_state["username"] == "" or "
                 elif password == "":
                     st.error("Please enter a password.")
                 else:
-                    st.success("Thank you for registering!")
                     hashed_password = stauth.Hasher([password]).generate()[0]
-                    result = db.Users.insert_one({"username": username, "password": hashed_password, "favorPrompts": [], "createdAt": datetime.datetime.now()})
+                    result = db.Users.insert_one({"username": username, "password": hashed_password, "favorPrompts": [], "flagPrompts": [], "createdAt": datetime.datetime.now()})
                     get_user_items(force = True)
+                    st.success("Thank you for registering!")
 else:
     st.sidebar.write(f'#### Welcome **{st.session_state["name"]}**')
     authenticator.logout('Logout', 'sidebar')
