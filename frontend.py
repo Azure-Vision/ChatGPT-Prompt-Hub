@@ -130,6 +130,7 @@ def render_prompts(prompt_ids, n_column = 3):
         
 if page == "Explore":
     st.write("### Explore Prompts")
+    st.session_state["all_prompt_ids"] = []
     get_prompt_items()
     get_user_items()
     render_prompts(st.session_state["all_prompt_ids"])
