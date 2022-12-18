@@ -3,7 +3,6 @@ attrs==22.1.0
 bcrypt==4.0.1
 blinker==1.5
 cachetools==5.2.0
-certifi @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_4d2o0arbv6/croot/certifi_1665076671099/work/certifi
 charset-normalizer==2.1.1
 click==8.1.3
 commonmark==0.9.1
