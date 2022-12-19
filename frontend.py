@@ -2,6 +2,7 @@ import streamlit as st
 import pymongo
 import streamlit_authenticator as stauth
 import datetime
+import random
 
 st.set_page_config(page_title="ChatGPT Prompt Hub", page_icon="🔮", layout="wide", initial_sidebar_state="auto", menu_items=None)
 
@@ -13,12 +14,35 @@ def init_connection():
     return db
 db = init_connection()
 
-def get_prompt_items(force = False):
-    if force or "all_prompt_ids" not in st.session_state or st.session_state["all_prompt_ids"] == [] or "prompt_dict" not in st.session_state:
-        prompts = db.Prompts.find()
-        prompt_items = list(prompts)
-        st.session_state["all_prompt_ids"] = [prompt["_id"] for prompt in prompt_items]
-        st.session_state["prompt_dict"] = {prompt["_id"]: prompt for prompt in prompt_items}
+
+def find_prompt_items(language = "All", sort = "Recence", search_text = ""):
+    actions = []
+    if search_text != "":
+        actions.append({'$search': {
+            'index': 'default',
+            'text': {
+                'query': search_text,
+                'path': {
+                'wildcard': '*'}
+                },
+            }
+        })
+    if language != "All":
+        actions.append({'$match': {'lan': language}})
+    if sort == "Recency":
+        actions.append({
+            "$sort": { "createdAt": -1 }
+        })
+    elif sort == "Popularity":
+        actions.append({
+            "$sort": { "numFavor": -1 }
+        })
+    prompts = db.Prompts.aggregate(actions)
+    prompt_items = list(prompts)
+    if "prompt_dict" not in st.session_state: st.session_state["prompt_dict"] = {}
+    for prompt in prompt_items:
+        st.session_state["prompt_dict"][prompt["_id"]] = prompt
+    return [prompt["_id"] for prompt in prompt_items]
 
 def get_user_items(force = False):
     if force or "users_dict" not in st.session_state or "usernames" not in st.session_state or "id_username_dict" not in st.session_state or "username_id_dict" not in st.session_state or "password_dict" not in st.session_state:
@@ -30,16 +54,15 @@ def get_user_items(force = False):
         st.session_state['username_id_dict'] = {user["username"]: user["_id"] for user in user_items}
         st.session_state['password_dict'] = {"usernames": {user["username"]: {"name": user["username"], "password": user["password"]} for user in user_items}}
 
-page = st.sidebar.selectbox("Page", ["Explore", "My Collections", "Create"])
-title_column, login_column = st.columns([6,1])
-title_column.markdown("## :crystal_ball: ChatGPT Prompt Hub")
+st.markdown("# :crystal_ball: ChatGPT Prompt Hub")
+st.write("Source code: https://github.com/Azure-Vision/ChatGPT-Prompt-Hub")
+explore_tab, collection_tab, create_tab = st.tabs(["Explore", "My Collections", "Create"])
 
 
 def render_prompts(prompt_ids, n_column = 3):
-    # prompts = st.session_state["prompts"]
-    grouped_prompt_ids = [prompt_ids[n_column*k:n_column*k+n_column] for k in range(len(prompt_ids)//n_column + 1)]
-    for n_prompt_ids in grouped_prompt_ids:
-        n_prompts = [st.session_state["prompt_dict"][prompt_id] for prompt_id in n_prompt_ids]
+    prompts = [st.session_state["prompt_dict"][prompt_id] for prompt_id in prompt_ids if "numFlag" in st.session_state["prompt_dict"][prompt_id] and st.session_state["prompt_dict"][prompt_id]["numFlag"] < 5]
+    grouped_prompts = [prompts[n_column*k:n_column*k+n_column] for k in range(len(prompts)//n_column + 1)]
+    for n_prompts in grouped_prompts:
         st_2n_columns = st.columns(n_column * [2,1])
         for column_i, item in enumerate(n_prompts):
             st_2n_columns[2*column_i].markdown(f"""##### {item['title']}""")
@@ -63,7 +86,7 @@ def render_prompts(prompt_ids, n_column = 3):
             else:
                 is_favor = False
 
-            change_favor = favor_col.button(f"{':heart:' if is_favor else '🤍'} {item['numFavor']}", key = "heart" + item['content']) # 
+            change_favor = favor_col.button(f"{':heart:' if is_favor else '🤍'} {item['numFavor']}", key = "heart" + item['content']+str(random.random())) # 
             if change_favor:
                 if "username" in st.session_state and st.session_state["username"]:
                     is_favor = not is_favor
@@ -87,7 +110,7 @@ def render_prompts(prompt_ids, n_column = 3):
             else:
                 is_flag = False
 
-            change_flag = flag_col.button(f"{'⚠️' if is_flag else '❕'} {item['numFlag']}", key = "flag" + item['content']) # 
+            change_flag = flag_col.button(f"{'⚠️' if is_flag else '❕'} {item['numFlag']}", key = "flag" + item['content']+str(random.random())) # 
             if change_flag:
                 if "username" in st.session_state and st.session_state["username"]:
                     is_flag = not is_flag
@@ -105,15 +128,24 @@ def render_prompts(prompt_ids, n_column = 3):
                 else:
                     st.error("Please log in to flag a prompt.")
         
-if page == "Explore":
-    st.write("### Explore Prompts")
-    st.session_state["all_prompt_ids"] = []
-    get_prompt_items()
+with explore_tab:
+    column1, column2, column3 = st.columns([5,3,1])
+    column1.write("")
+    column1.write("### Explore Prompts")
+    search_text = column2.text_input("Search", label_visibility="hidden")
+    column2.write("")
+    column3.write("")
+    column3.write("")
+    do_search = column3.button("Search")
+    with st.expander("Advanced search"):
+        language = st.selectbox("Language", ["All", "English", "Chinese", "Arabic", "French", "Russian", "Spanish"])
+        sort = st.selectbox("Sort by", ["Recency", "Popularity"])
     get_user_items()
-    render_prompts(st.session_state["all_prompt_ids"])
+    prompt_ids = find_prompt_items(language, sort, search_text)
+    render_prompts(prompt_ids)
 
 
-if page == "My Collections":
+with collection_tab:
     st.write("### :heart: My Favorite Prompts")
     prompt_dict = st.session_state["prompt_dict"]
     if "username" in st.session_state and st.session_state["username"]:
@@ -124,7 +156,7 @@ if page == "My Collections":
         st.error("Please log in to view your favorite prompts.")
 
 
-if page == "Create":
+with create_tab:
     st.write("### Create A Prompt :writing_hand:")
     with st.form("write_prompt"):
         title = st.text_input("Title")
@@ -142,9 +174,11 @@ if page == "Create":
             elif prompt == "":
                 st.error("Please enter a prompt.")
             else:
+                prompt_item = {"title": title, "content": prompt, "lan": language, "author": author_id, "authorName": author, "createdAt": datetime.datetime.now(), "numFavor": 1, "numFlag": 0}
+                result = db.Prompts.insert_one(prompt_item)
+                db.Users.update_one({"_id": author_id}, {"$push": {"favorPrompts": result.inserted_id}})
+                find_prompt_items()
                 st.success("Thank you for submitting!")
-                result = db.Prompts.insert_one({"title": title, "content": prompt, "language": language, "author": author_id, "authorName": author, "createdAt": datetime.datetime.now(), "numFavor": 0, "numFlag": 0})
-                get_prompt_items(force = True)
 
 get_user_items()
 authenticator = stauth.Authenticate(
